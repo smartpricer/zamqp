@@ -696,7 +696,7 @@ fn unexpected(status: status_t) error{Unexpected} {
     return error.Unexpected;
 }
 
-pub const status_t = enum(c_api.c_int) {
+pub const status_t = enum(c_int) {
     OK = 0,
     NO_MEMORY = -1,
     BAD_AMQP_DATA = -2,
