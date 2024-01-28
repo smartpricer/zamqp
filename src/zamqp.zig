@@ -3,7 +3,126 @@ const mem = std.mem;
 const meta = std.meta;
 const c = std.c;
 
-usingnamespace @import("c_api.zig");
+pub const c_api = struct {
+    pub extern fn amqp_version_number() u32;
+    pub extern fn amqp_version() [*:0]const u8;
+    pub extern fn amqp_error_string2(err: status_t) [*:0]const u8;
+    pub extern fn amqp_cstring_bytes(cstr: [*:0]const u8) bytes_t;
+    pub extern fn amqp_parse_url(url: [*:0]u8, parsed: *ConnectionInfo) status_t;
+
+    // Connection
+    pub const connection_state_t = opaque {};
+
+    pub extern fn amqp_new_connection() ?*connection_state_t;
+    pub extern fn amqp_connection_close(state: *connection_state_t, code: c_int) RpcReply;
+    pub extern fn amqp_destroy_connection(state: *connection_state_t) status_t;
+    pub extern fn amqp_login(state: *connection_state_t, vhost: [*:0]const u8, channel_max: c_int, frame_max: c_int, heartbeat: c_int, sasl_method: sasl_method_t, ...) RpcReply;
+    pub extern fn amqp_maybe_release_buffers(state: *connection_state_t) void;
+    pub extern fn amqp_get_rpc_reply(state: *connection_state_t) RpcReply;
+    pub extern fn amqp_simple_wait_frame_noblock(state: *connection_state_t, decoded_frame: *Frame, tv: ?*c.timeval) status_t;
+    pub extern fn amqp_consume_message(state: *connection_state_t, envelope: *Envelope, timeout: ?*c.timeval, flags_t: c_int) RpcReply;
+
+    // Socket
+    pub const socket_t = opaque {};
+
+    pub extern fn amqp_socket_open_noblock(self: *socket_t, host: [*:0]const u8, port: c_int, timeout: ?*c.timeval) status_t;
+
+    pub extern fn amqp_tcp_socket_new(state: *connection_state_t) ?*socket_t;
+    pub extern fn amqp_tcp_socket_set_sockfd(self: *socket_t, sockfd: c_int) void;
+
+    pub extern fn amqp_ssl_socket_new(state: *connection_state_t) ?*socket_t;
+    pub extern fn amqp_ssl_socket_set_cacert(self: *socket_t, cacert: [*:0]const u8) status_t;
+    pub extern fn amqp_ssl_socket_set_key(self: *socket_t, cert: [*:0]const u8, key: [*:0]const u8) status_t;
+    pub extern fn amqp_ssl_socket_set_key_buffer(self: *socket_t, cert: [*:0]const u8, key: ?*const c_api.c_void, n: usize) status_t;
+    pub extern fn amqp_ssl_socket_set_verify_peer(self: *socket_t, verify: boolean_t) void;
+    pub extern fn amqp_ssl_socket_set_verify_hostname(self: *socket_t, verify: boolean_t) void;
+    pub extern fn amqp_ssl_socket_set_ssl_versions(self: *socket_t, min: c_api.tls_version_t, max: c_api.tls_version_t) status_t;
+
+    // Channel
+
+    pub extern fn amqp_channel_open(state: *connection_state_t, channel: channel_t) ?*channel_open_ok_t;
+    pub extern fn amqp_read_message(state: *connection_state_t, channel: channel_t, message: *Message, flags: c_int) RpcReply;
+    pub extern fn amqp_basic_publish(
+        state: *connection_state_t,
+        channel: channel_t,
+        exchange: bytes_t,
+        routing_key: bytes_t,
+        mandatory: boolean_t,
+        immediate: boolean_t,
+        properties: *const BasicProperties,
+        body: bytes_t,
+    ) status_t;
+    pub extern fn amqp_basic_consume(
+        state: *connection_state_t,
+        channel: channel_t,
+        queue: bytes_t,
+        consumer_tag: bytes_t,
+        no_local: boolean_t,
+        no_ack: boolean_t,
+        exclusive: boolean_t,
+        arguments: table_t,
+    ) ?*basic_consume_ok_t;
+    pub extern fn amqp_exchange_declare(
+        state: *connection_state_t,
+        channel: channel_t,
+        exchange: bytes_t,
+        type_: bytes_t,
+        passive: boolean_t,
+        durable: boolean_t,
+        auto_delete: boolean_t,
+        internal: boolean_t,
+        arguments: table_t,
+    ) ?*exchange_declare_ok_t;
+    pub extern fn amqp_queue_declare(
+        state: *connection_state_t,
+        channel: channel_t,
+        queue: bytes_t,
+        passive: boolean_t,
+        durable: boolean_t,
+        exclusive: boolean_t,
+        auto_delete: boolean_t,
+        arguments: table_t,
+    ) ?*queue_declare_ok_t;
+    pub extern fn amqp_queue_bind(
+        state: *connection_state_t,
+        channel: channel_t,
+        queue: bytes_t,
+        exchange: bytes_t,
+        routing_key: bytes_t,
+        arguments: table_t,
+    ) ?*queue_bind_ok_t;
+    pub extern fn amqp_basic_ack(state: *connection_state_t, channel: channel_t, delivery_tag: u64, multiple: boolean_t) status_t;
+    pub extern fn amqp_basic_reject(state: *connection_state_t, channel: channel_t, delivery_tag: u64, requeue: boolean_t) status_t;
+    pub extern fn amqp_basic_qos(state: *connection_state_t, channel: channel_t, prefetch_size: u32, prefetch_count: u16, global: boolean_t) ?*basic_qos_ok_t;
+    pub extern fn amqp_channel_close(state: *connection_state_t, channel: channel_t, code: c_int) RpcReply;
+    pub extern fn amqp_maybe_release_buffers_on_channel(state: *connection_state_t, channel: channel_t) void;
+
+    pub extern fn amqp_destroy_message(message: *Message) void;
+
+    pub extern fn amqp_destroy_envelope(envelope: *Envelope) void;
+
+    pub extern const amqp_empty_bytes: bytes_t;
+    pub extern const amqp_empty_table: table_t;
+    pub extern const amqp_empty_array: array_t;
+
+    pub const sasl_method_t = enum(c_int) {
+        UNDEFINED = -1,
+        PLAIN = 0,
+        EXTERNAL = 1,
+        _,
+    };
+
+    pub const basic_qos_ok_t = extern struct {
+        dummy: u8,
+    };
+    pub const exchange_declare_ok_t = extern struct {
+        dummy: u8,
+    };
+    pub const queue_bind_ok_t = extern struct {
+        dummy: u8,
+    };
+};
+
 
 const log = std.log.scoped(.zamqp);
 
@@ -24,7 +143,7 @@ pub const bytes_t = extern struct {
         return (self.bytes orelse return null)[0..self.len];
     }
 
-    pub const initZ = amqp_cstring_bytes;
+    pub const initZ = c_api.amqp_cstring_bytes;
 
     pub fn empty() bytes_t {
         return .{ .len = 0, .bytes = null };
@@ -51,7 +170,7 @@ pub const table_t = extern struct {
 
 pub const method_t = extern struct {
     id: method_number_t,
-    decoded: ?*c_void,
+    decoded: ?*c_api.c_void,
 };
 
 pub const DEFAULT_FRAME_SIZE: c_int = 131072;
@@ -59,8 +178,8 @@ pub const DEFAULT_MAX_CHANNELS: c_int = 2047;
 // pub const DEFAULT_HEARTBEAT: c_int = 0;
 // pub const DEFAULT_VHOST = "/";
 
-pub const version_number = amqp_version_number;
-pub const version = amqp_version;
+pub const version_number = c_api.amqp_version_number;
+pub const version = c_api.amqp_version;
 
 pub const ConnectionInfo = extern struct {
     user: [*:0]u8,
@@ -73,7 +192,7 @@ pub const ConnectionInfo = extern struct {
 
 pub fn parse_url(url: [*:0]u8) error{ BadUrl, Unexpected }!ConnectionInfo {
     var result: ConnectionInfo = undefined;
-    return switch (amqp_parse_url(url, &result)) {
+    return switch (c_api.amqp_parse_url(url, &result)) {
         .OK => result,
         .BAD_URL => error.BadUrl,
         else => |code| unexpected(code),
@@ -81,29 +200,29 @@ pub fn parse_url(url: [*:0]u8) error{ BadUrl, Unexpected }!ConnectionInfo {
 }
 
 pub const Connection = struct {
-    handle: *connection_state_t,
+    handle: *c_api.connection_state_t,
 
     pub fn new() error{OutOfMemory}!Connection {
-        return Connection{ .handle = amqp_new_connection() orelse return error.OutOfMemory };
+        return Connection{ .handle = c_api.amqp_new_connection() orelse return error.OutOfMemory };
     }
 
     pub fn close(self: Connection, code: ReplyCode) !void {
-        return amqp_connection_close(self.handle, @enumToInt(code)).ok();
+        return c_api.amqp_connection_close(self.handle, @intFromEnum(code)).ok();
     }
 
     pub fn destroy(self: *Connection) !void {
-        const status = amqp_destroy_connection(self.handle);
+        const status = c_api.amqp_destroy_connection(self.handle);
         self.handle = undefined;
         return status.ok();
     }
 
     pub fn maybe_release_buffers(self: Connection) void {
-        amqp_maybe_release_buffers(self.handle);
+        c_api.amqp_maybe_release_buffers(self.handle);
     }
 
-    /// Not every function updates this. See docs of `amqp_get_rpc_reply`.
+    /// Not every function updates this. See docs of `c_api.amqp_get_rpc_reply`.
     pub fn last_rpc_reply(self: Connection) RpcReply {
-        return amqp_get_rpc_reply(self.handle);
+        return c_api.amqp_get_rpc_reply(self.handle);
     }
 
     pub fn login(
@@ -117,20 +236,20 @@ pub const Connection = struct {
         },
     ) !void {
         return switch (sasl_auth) {
-            .plain => |plain| amqp_login(self.handle, vhost, extra.channel_max, extra.frame_max, extra.heartbeat, .PLAIN, plain.username, plain.password),
-            .external => |external| amqp_login(self.handle, vhost, extra.channel_max, extra.frame_max, extra.heartbeat, .EXTERNAL, external.identity),
+            .plain => |plain| c_api.amqp_login(self.handle, vhost, extra.channel_max, extra.frame_max, extra.heartbeat, .PLAIN, plain.username, plain.password),
+            .external => |external| c_api.amqp_login(self.handle, vhost, extra.channel_max, extra.frame_max, extra.heartbeat, .EXTERNAL, external.identity),
         }.ok();
     }
 
     pub fn simple_wait_frame(self: Connection, timeout: ?*c.timeval) !Frame {
         var f: Frame = undefined;
-        try amqp_simple_wait_frame_noblock(self.handle, &f, timeout).ok();
+        try c_api.amqp_simple_wait_frame_noblock(self.handle, &f, timeout).ok();
         return f;
     }
 
     pub fn consume_message(self: Connection, timeout: ?*c.timeval, flags: c_int) !Envelope {
         var e: Envelope = undefined;
-        try amqp_consume_message(self.handle, &e, timeout, flags).ok();
+        try c_api.amqp_consume_message(self.handle, &e, timeout, flags).ok();
         return e;
     }
 
@@ -154,11 +273,11 @@ pub const Channel = struct {
     number: channel_t,
 
     pub fn open(self: Channel) !*channel_open_ok_t {
-        return amqp_channel_open(self.connection.handle, self.number) orelse self.connection.last_rpc_reply().err();
+        return c_api.amqp_channel_open(self.connection.handle, self.number) orelse self.connection.last_rpc_reply().err();
     }
 
     pub fn close(self: Channel, code: ReplyCode) !void {
-        return amqp_channel_close(self.connection.handle, self.number, @enumToInt(code)).ok();
+        return c_api.amqp_channel_close(self.connection.handle, self.number, @intFromEnum(code)).ok();
     }
 
     pub fn exchange_declare(
@@ -173,15 +292,15 @@ pub const Channel = struct {
             arguments: table_t = table_t.empty(),
         },
     ) !void {
-        _ = amqp_exchange_declare(
+        _ = c_api.amqp_exchange_declare(
             self.connection.handle,
             self.number,
             exchange,
             type_,
-            @boolToInt(extra.passive),
-            @boolToInt(extra.durable),
-            @boolToInt(extra.auto_delete),
-            @boolToInt(extra.internal),
+            @intFromBool(extra.passive),
+            @intFromBool(extra.durable),
+            @intFromBool(extra.auto_delete),
+            @intFromBool(extra.internal),
             extra.arguments,
         ) orelse return self.connection.last_rpc_reply().err();
     }
@@ -197,20 +316,20 @@ pub const Channel = struct {
             arguments: table_t = table_t.empty(),
         },
     ) !*queue_declare_ok_t {
-        return amqp_queue_declare(
+        return c_api.amqp_queue_declare(
             self.connection.handle,
             self.number,
             queue,
-            @boolToInt(extra.passive),
-            @boolToInt(extra.durable),
-            @boolToInt(extra.exclusive),
-            @boolToInt(extra.auto_delete),
+            @intFromBool(extra.passive),
+            @intFromBool(extra.durable),
+            @intFromBool(extra.exclusive),
+            @intFromBool(extra.auto_delete),
             extra.arguments,
         ) orelse self.connection.last_rpc_reply().err();
     }
 
     pub fn queue_bind(self: Channel, queue: bytes_t, exchange: bytes_t, routing_key: bytes_t, arguments: table_t) !void {
-        _ = amqp_queue_bind(self.connection.handle, self.number, queue, exchange, routing_key, arguments) orelse return self.connection.last_rpc_reply().err();
+        _ = c_api.amqp_queue_bind(self.connection.handle, self.number, queue, exchange, routing_key, arguments) orelse return self.connection.last_rpc_reply().err();
     }
 
     pub fn basic_publish(
@@ -224,13 +343,13 @@ pub const Channel = struct {
             immediate: bool = false,
         },
     ) !void {
-        return amqp_basic_publish(
+        return c_api.amqp_basic_publish(
             self.connection.handle,
             self.number,
             exchange,
             routing_key,
-            @boolToInt(extra.mandatory),
-            @boolToInt(extra.immediate),
+            @intFromBool(extra.mandatory),
+            @intFromBool(extra.immediate),
             &properties,
             body,
         ).ok();
@@ -247,96 +366,96 @@ pub const Channel = struct {
             arguments: table_t = table_t.empty(),
         },
     ) !*basic_consume_ok_t {
-        return amqp_basic_consume(
+        return c_api.amqp_basic_consume(
             self.connection.handle,
             self.number,
             queue,
             extra.consumer_tag,
-            @boolToInt(extra.no_local),
-            @boolToInt(extra.no_ack),
-            @boolToInt(extra.exclusive),
+            @intFromBool(extra.no_local),
+            @intFromBool(extra.no_ack),
+            @intFromBool(extra.exclusive),
             extra.arguments,
         ) orelse self.connection.last_rpc_reply().err();
     }
 
     pub fn basic_ack(self: Channel, delivery_tag: u64, multiple: bool) !void {
-        return amqp_basic_ack(self.connection.handle, self.number, delivery_tag, @boolToInt(multiple)).ok();
+        return c_api.amqp_basic_ack(self.connection.handle, self.number, delivery_tag, @intFromBool(multiple)).ok();
     }
 
     pub fn basic_reject(self: Channel, delivery_tag: u64, requeue: bool) !void {
-        return amqp_basic_reject(self.connection.handle, self.number, delivery_tag, @boolToInt(requeue)).ok();
+        return c_api.amqp_basic_reject(self.connection.handle, self.number, delivery_tag, @intFromBool(requeue)).ok();
     }
 
     pub fn basic_qos(self: Channel, prefetch_size: u32, prefetch_count: u16, global: bool) !void {
-        _ = amqp_basic_qos(
+        _ = c_api.amqp_basic_qos(
             self.connection.handle,
             self.number,
             prefetch_size,
             prefetch_count,
-            @boolToInt(global),
+            @intFromBool(global),
         ) orelse return self.connection.last_rpc_reply().err();
     }
 
     pub fn read_message(self: Channel, flags: c_int) !Message {
         var msg: Message = undefined;
-        try amqp_read_message(self.connection.handle, self.number, &msg, flags).ok();
+        try c_api.amqp_read_message(self.connection.handle, self.number, &msg, flags).ok();
         return msg;
     }
 
     pub fn maybe_release_buffers(self: Channel) void {
-        amqp_maybe_release_buffers_on_channel(self.connection.handle, self.number);
+        c_api.amqp_maybe_release_buffers_on_channel(self.connection.handle, self.number);
     }
 };
 
 pub const TcpSocket = struct {
-    handle: *socket_t,
+    handle: *c_api.socket_t,
 
     pub fn new(connection: Connection) error{OutOfMemory}!TcpSocket {
-        return TcpSocket{ .handle = amqp_tcp_socket_new(connection.handle) orelse return error.OutOfMemory };
+        return TcpSocket{ .handle = c_api.amqp_tcp_socket_new(connection.handle) orelse return error.OutOfMemory };
     }
 
     pub fn set_sockfd(self: TcpSocket, sockfd: c_int) void {
-        amqp_tcp_socket_set_sockfd(self.handle, sockfd);
+        c_api.amqp_tcp_socket_set_sockfd(self.handle, sockfd);
     }
 
     pub fn open(self: TcpSocket, host: [*:0]const u8, port: c_int, timeout: ?*c.timeval) !void {
-        return amqp_socket_open_noblock(self.handle, host, port, timeout).ok();
+        return c_api.amqp_socket_open_noblock(self.handle, host, port, timeout).ok();
     }
 };
 
 pub const SslSocket = struct {
-    handle: *socket_t,
+    handle: *c_api.socket_t,
 
     pub fn new(connection: Connection) error{OutOfMemory}!SslSocket {
-        return SslSocket{ .handle = amqp_ssl_socket_new(connection.handle) orelse return error.OutOfMemory };
+        return SslSocket{ .handle = c_api.amqp_ssl_socket_new(connection.handle) orelse return error.OutOfMemory };
     }
 
     pub fn open(self: SslSocket, host: [*:0]const u8, port: c_int, timeout: ?*c.timeval) !void {
-        return amqp_socket_open_noblock(self.handle, host, port, timeout).ok();
+        return c_api.amqp_socket_open_noblock(self.handle, host, port, timeout).ok();
     }
 
     pub fn set_cacert(self: SslSocket, cacert_path: [*:0]const u8) !void {
-        return amqp_ssl_socket_set_cacert(self.handle, cacert_path).ok();
+        return c_api.amqp_ssl_socket_set_cacert(self.handle, cacert_path).ok();
     }
 
     pub fn set_key(self: SslSocket, cert_path: [*:0]const u8, key_path: [*:0]const u8) !void {
-        return amqp_ssl_socket_set_key(self.handle, cert_path, key_path).ok();
+        return c_api.amqp_ssl_socket_set_key(self.handle, cert_path, key_path).ok();
     }
 
     pub fn set_key_buffer(self: SslSocket, cert_path: [*:0]const u8, key: []const u8) !void {
-        return amqp_ssl_socket_set_key_buffer(self.handle, cert_path, key.ptr, key.len).ok();
+        return c_api.amqp_ssl_socket_set_key_buffer(self.handle, cert_path, key.ptr, key.len).ok();
     }
 
     pub fn set_verify_peer(self: SslSocket, verify: bool) void {
-        amqp_ssl_socket_set_verify_peer(self.handle, @boolToInt(verify));
+        c_api.amqp_ssl_socket_set_verify_peer(self.handle, @intFromBool(verify));
     }
 
     pub fn set_verify_hostname(self: SslSocket, verify: bool) void {
-        amqp_ssl_socket_set_verify_hostname(self.handle, @boolToInt(verify));
+        c_api.amqp_ssl_socket_set_verify_hostname(self.handle, @intFromBool(verify));
     }
 
     pub fn set_ssl_versions(self: SslSocket, min: TlsVersion, max: TlsVersion) error{ Unsupported, InvalidParameter, Unexpected }!void {
-        return switch (amqp_ssl_socket_set_ssl_versions(self.handle, min, max)) {
+        return switch (c_api.amqp_ssl_socket_set_ssl_versions(self.handle, min, max)) {
             .OK => {},
             .UNSUPPORTED => error.Unsupported,
             .INVALID_PARAMETER => error.InvalidParameter,
@@ -344,7 +463,7 @@ pub const SslSocket = struct {
         };
     }
 
-    const TlsVersion = extern enum(c_int) {
+    const TlsVersion = enum(c_api.c_int) {
         v1 = 1,
         v1_1 = 2,
         v1_2 = 3,
@@ -382,7 +501,7 @@ pub const RpcReply = extern struct {
         } else |e| return e;
     }
 
-    pub const response_type_t = extern enum(c_int) {
+    pub const response_type_t = enum(c_api.c_int) {
         NONE = 0,
         NORMAL = 1,
         LIBRARY_EXCEPTION = 2,
@@ -415,28 +534,28 @@ pub const BasicProperties = extern struct {
 
         inline for (meta.fields(@TypeOf(fields))) |f| {
             @field(props, "_" ++ f.name) = @field(fields, f.name);
-            props._flags |= @enumToInt(@field(Flag, f.name));
+            props._flags |= @intFromEnum(@field(Flag, f.name));
         }
 
         return props;
     }
 
     pub fn get(self: BasicProperties, comptime flag: Flag) ?flag.Type() {
-        if (self._flags & @enumToInt(flag) == 0) return null;
+        if (self._flags & @intFromEnum(flag) == 0) return null;
         return @field(self, "_" ++ @tagName(flag));
     }
 
     pub fn set(self: *BasicProperties, comptime flag: Flag, value: ?flag.Type()) void {
         if (value) |val| {
-            self._flags |= @enumToInt(flag);
+            self._flags |= @intFromEnum(flag);
             @field(self, "_" ++ @tagName(flag)) = val;
         } else {
-            self._flags &= ~@enumToInt(flag);
+            self._flags &= ~@intFromEnum(flag);
             @field(self, "_" ++ @tagName(flag)) = undefined;
         }
     }
 
-    pub const Flag = extern enum(flags_t) {
+    pub const Flag = enum(c_api.flags_t) {
         content_type = 1 << 15,
         content_encoding = 1 << 14,
         headers = 1 << 13,
@@ -465,7 +584,7 @@ pub const BasicProperties = extern struct {
 
 pub const pool_blocklist_t = extern struct {
     num_blocks: c_int,
-    blocklist: [*]?*c_void,
+    blocklist: [*]?*c_api.c_void,
 };
 
 pub const pool_t = extern struct {
@@ -483,7 +602,7 @@ pub const Message = extern struct {
     pool: pool_t,
 
     pub fn destroy(self: *Message) void {
-        amqp_destroy_message(self);
+        c_api.amqp_destroy_message(self);
     }
 };
 
@@ -497,7 +616,7 @@ pub const Envelope = extern struct {
     message: Message,
 
     pub fn destroy(self: *Envelope) void {
-        amqp_destroy_envelope(self);
+        c_api.amqp_destroy_envelope(self);
     }
 };
 
@@ -511,7 +630,7 @@ pub const Frame = extern struct {
         properties: extern struct {
             class_id: u16,
             body_size: u64,
-            decoded: ?*c_void,
+            decoded: ?*c_api.c_void,
             raw: bytes_t,
         },
         /// frame_type == BODY
@@ -525,7 +644,7 @@ pub const Frame = extern struct {
         },
     },
 
-    pub const Type = extern enum(u8) {
+    pub const Type = enum(c_api.u8) {
         METHOD = 1,
         HEADER = 2,
         BODY = 3,
@@ -577,7 +696,7 @@ fn unexpected(status: status_t) error{Unexpected} {
     return error.Unexpected;
 }
 
-pub const status_t = extern enum(c_int) {
+pub const status_t = enum(c_api.c_int) {
     OK = 0,
     NO_MEMORY = -1,
     BAD_AMQP_DATA = -2,
@@ -640,10 +759,10 @@ pub const status_t = extern enum(c_int) {
         };
     }
 
-    pub const string = amqp_error_string2;
+    pub const string = c_api.amqp_error_string2;
 };
 
-pub const ReplyCode = extern enum(u16) {
+pub const ReplyCode = enum(u16) {
     REPLY_SUCCESS = 200,
     CONTENT_TOO_LARGE = 311,
     NO_ROUTE = 312,
@@ -665,7 +784,7 @@ pub const ReplyCode = extern enum(u16) {
     INTERNAL_ERROR = 541,
 };
 
-pub const method_number_t = extern enum(u32) {
+pub const method_number_t = enum(u32) {
     CONNECTION_START = 0x000A000A,
     CONNECTION_START_OK = 0x000A000B,
     CONNECTION_SECURE = 0x000A0014,
