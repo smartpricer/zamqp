@@ -33,7 +33,7 @@ pub const c_api = struct {
     pub extern fn amqp_ssl_socket_new(state: *connection_state_t) ?*socket_t;
     pub extern fn amqp_ssl_socket_set_cacert(self: *socket_t, cacert: [*:0]const u8) status_t;
     pub extern fn amqp_ssl_socket_set_key(self: *socket_t, cert: [*:0]const u8, key: [*:0]const u8) status_t;
-    pub extern fn amqp_ssl_socket_set_key_buffer(self: *socket_t, cert: [*:0]const u8, key: ?*const c_api.c_void, n: usize) status_t;
+    pub extern fn amqp_ssl_socket_set_key_buffer(self: *socket_t, cert: [*:0]const u8, key: ?*const anyopaque, n: usize) status_t;
     pub extern fn amqp_ssl_socket_set_verify_peer(self: *socket_t, verify: boolean_t) void;
     pub extern fn amqp_ssl_socket_set_verify_hostname(self: *socket_t, verify: boolean_t) void;
     pub extern fn amqp_ssl_socket_set_ssl_versions(self: *socket_t, min: c_api.tls_version_t, max: c_api.tls_version_t) status_t;
@@ -170,7 +170,7 @@ pub const table_t = extern struct {
 
 pub const method_t = extern struct {
     id: method_number_t,
-    decoded: ?*c_api.c_void,
+    decoded: ?*anyopaque,
 };
 
 pub const DEFAULT_FRAME_SIZE: c_int = 131072;
@@ -584,7 +584,7 @@ pub const BasicProperties = extern struct {
 
 pub const pool_blocklist_t = extern struct {
     num_blocks: c_int,
-    blocklist: [*]?*c_api.c_void,
+    blocklist: [*]?*anyopaque,
 };
 
 pub const pool_t = extern struct {
@@ -630,7 +630,7 @@ pub const Frame = extern struct {
         properties: extern struct {
             class_id: u16,
             body_size: u64,
-            decoded: ?*c_api.c_void,
+            decoded: ?*anyopaque,
             raw: bytes_t,
         },
         /// frame_type == BODY
