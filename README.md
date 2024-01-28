@@ -9,3 +9,11 @@ zamqp is a Zig wrapper around [rabbitmq-c](https://github.com/alanxz/rabbitmq-c)
     step.addPackagePath("zamqp", "../zamqp/src/zamqp.zig");
     ```
 3. Import with `@import("zamqp")`.
+
+## Building the Library
+
+Run the following command to perform a build of the library within this very project:
+
+```sh
+zig build-lib src/zamqp.zig
+```
