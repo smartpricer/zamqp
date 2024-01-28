@@ -488,7 +488,7 @@ pub const RpcReply = extern struct {
                 else => error.UnexpectedReply,
             },
             _ => {
-                log.crit("unexpected librabbitmq response type, value {}", .{self.reply_type});
+                log.err("unexpected librabbitmq response type, value {}", .{self.reply_type});
                 return error.Unexpected;
             },
         };
@@ -496,7 +496,7 @@ pub const RpcReply = extern struct {
 
     pub fn err(self: RpcReply) Error {
         if (self.ok()) |_| {
-            log.crit("expected librabbitmq error, got success instead", .{});
+            log.err("expected librabbitmq error, got success instead", .{});
             return error.Unexpected;
         } else |e| return e;
     }
@@ -692,7 +692,7 @@ pub const LibraryError = error{
 };
 
 fn unexpected(status: status_t) error{Unexpected} {
-    log.crit("unexpected librabbitmq error, code {}, message {s}", .{ status, status.string() });
+    log.err("unexpected librabbitmq error, code {}, message {s}", .{ status, status.string() });
     return error.Unexpected;
 }
 
