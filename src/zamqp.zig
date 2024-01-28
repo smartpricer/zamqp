@@ -501,7 +501,7 @@ pub const RpcReply = extern struct {
         } else |e| return e;
     }
 
-    pub const response_type_t = enum(c_api.c_int) {
+    pub const response_type_t = enum(c_int) {
         NONE = 0,
         NORMAL = 1,
         LIBRARY_EXCEPTION = 2,
@@ -555,7 +555,7 @@ pub const BasicProperties = extern struct {
         }
     }
 
-    pub const Flag = enum(c_api.flags_t) {
+    pub const Flag = enum(flags_t) {
         content_type = 1 << 15,
         content_encoding = 1 << 14,
         headers = 1 << 13,
