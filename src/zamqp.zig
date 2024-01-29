@@ -123,7 +123,6 @@ pub const c_api = struct {
     };
 };
 
-
 const log = std.log.scoped(.zamqp);
 
 pub const boolean_t = c_int;
@@ -161,12 +160,358 @@ pub const array_t = extern struct {
 
 pub const table_t = extern struct {
     num_entries: c_int,
-    entries: ?*opaque {},
+    entries: ?*table_entry_t,
 
     pub fn empty() table_t {
         return .{ .num_entries = 0, .entries = null };
     }
+
+    pub fn init(allocator: std.mem.Allocator, s: anytype) !table_t {
+        const t = @TypeOf(s);
+        const ti = @typeInfo(t);
+        if (ti != .Struct) {
+            return error.ArgumentNoStruct;
+        }
+
+        const fields = std.meta.fields(t);
+        const entries = try allocator.alloc(table_entry_t, fields.len);
+
+        inline for (fields, 0..) |f, i| {
+            entries[i] = try table_entry_t.init(f.name, @field(s, f.name));
+        }
+
+        return table_t{
+            .num_entries = @intCast(entries.len),
+            .entries = &entries[0],
+        };
+    }
+
+    pub fn deinit(self: *table_t, allocator: std.mem.Allocator) void {
+        const entries = self.entries;
+        self.entries = null;
+
+        if (entries) |e| {
+        allocator.free(@as([]table_entry_t, @ptrCast(e)));
+        }
+    }
 };
+
+test "table_t init" {
+    const allocator = std.testing.allocator;
+
+    const value = .{
+        .b = true,
+        .int8 = @as(i8, -8),
+        .uint8 = @as(u8, 8),
+        .int16 = @as(i16, -16),
+        .uint16 = @as(u16, 16),
+        .int32 = @as(i32, -32),
+        .uint32 = @as(u32, 32),
+        .int64 = @as(i64, -64),
+        .uint64 = @as(u64, 64),
+        .s1 = "hello world",
+    };
+
+    var e = try table_t.init(allocator, value);
+    defer e.deinit(allocator);
+}
+
+pub const table_entry_kind = enum(u8) {
+    AMQP_FIELD_KIND_BOOLEAN = 't',
+    AMQP_FIELD_KIND_I8 = 'b',
+    AMQP_FIELD_KIND_U8 = 'B',
+    AMQP_FIELD_KIND_I16 = 's',
+    AMQP_FIELD_KIND_U16 = 'u',
+    AMQP_FIELD_KIND_I32 = 'I',
+    AMQP_FIELD_KIND_U32 = 'i',
+    AMQP_FIELD_KIND_I64 = 'l',
+    AMQP_FIELD_KIND_U64 = 'L',
+    //AMQP_FIELD_KIND_F32 = 'f',
+    //AMQP_FIELD_KIND_F64 = 'd',
+    //AMQP_FIELD_KIND_DECIMAL = 'D',
+    AMQP_FIELD_KIND_UTF8 = 'S',
+    //AMQP_FIELD_KIND_ARRAY = 'A',
+    //AMQP_FIELD_KIND_TIMESTAMP = 'T',
+    //AMQP_FIELD_KIND_TABLE = 'F',
+    AMQP_FIELD_KIND_VOID = 'V',
+    AMQP_FIELD_KIND_BYTES = 'x',
+};
+
+pub const table_entry_value_t = extern union {
+    AMQP_FIELD_KIND_BOOLEAN: boolean_t,
+    AMQP_FIELD_KIND_I8: i8,
+    AMQP_FIELD_KIND_U8: u8,
+    AMQP_FIELD_KIND_I16: i16,
+    AMQP_FIELD_KIND_U16: u16,
+    AMQP_FIELD_KIND_I32: i32,
+    AMQP_FIELD_KIND_U32: u32,
+    AMQP_FIELD_KIND_I64: i64,
+    AMQP_FIELD_KIND_U64: u64,
+    //AMQP_FIELD_KIND_F32: f32,
+    //AMQP_FIELD_KIND_F64: f64,
+    //AMQP_FIELD_KIND_DECIMAL = 'D',
+    AMQP_FIELD_KIND_UTF8: bytes_t,
+    //AMQP_FIELD_KIND_ARRAY = 'A',
+    //AMQP_FIELD_KIND_TIMESTAMP = 'T',
+    //AMQP_FIELD_KIND_TABLE = 'F',
+    AMQP_FIELD_KIND_VOID: void,
+    AMQP_FIELD_KIND_BYTES: bytes_t,
+};
+
+pub const table_entry_t = extern struct {
+    key: bytes_t,
+    kind: table_entry_kind = .AMQP_FIELD_KIND_VOID,
+    value: table_entry_value_t = undefined,
+
+    pub fn init(key: []const u8, comptime s: anytype) !table_entry_t {
+        var e = table_entry_t{
+            .key = bytes_t.init(key),
+        };
+
+        try e.set(s);
+
+        return e;
+    }
+
+    fn set(self: *table_entry_t, s: anytype) !void {
+        const t = @TypeOf(s);
+        const ti = @typeInfo(t);
+
+        switch (t) {
+            bool => {
+                self.kind = .AMQP_FIELD_KIND_BOOLEAN;
+                self.value.AMQP_FIELD_KIND_BOOLEAN = if (s) 1 else 0;
+            },
+            i8 => {
+                self.kind = .AMQP_FIELD_KIND_I8;
+                self.value.AMQP_FIELD_KIND_I8 = s;
+            },
+            u8 => {
+                self.kind = .AMQP_FIELD_KIND_U8;
+                self.value.AMQP_FIELD_KIND_U8 = s;
+            },
+            i16 => {
+                self.kind = .AMQP_FIELD_KIND_I16;
+                self.value.AMQP_FIELD_KIND_I16 = s;
+            },
+            u16 => {
+                self.kind = .AMQP_FIELD_KIND_U16;
+                self.value.AMQP_FIELD_KIND_U16 = s;
+            },
+            i32 => {
+                self.kind = .AMQP_FIELD_KIND_I32;
+                self.value.AMQP_FIELD_KIND_I32 = s;
+            },
+            u32 => {
+                self.kind = .AMQP_FIELD_KIND_U32;
+                self.value.AMQP_FIELD_KIND_U32 = s;
+            },
+            i64 => {
+                self.kind = .AMQP_FIELD_KIND_I64;
+                self.value.AMQP_FIELD_KIND_I64 = s;
+            },
+            u64 => {
+                self.kind = .AMQP_FIELD_KIND_U64;
+                self.value.AMQP_FIELD_KIND_U64 = s;
+            },
+            else => {
+                switch (ti) {
+                    .Optional => |_| {
+                        if (s) |v| {
+                            try self.set(v);
+                        } else {
+                            return error.NullOptional;
+                        }
+                    },
+                    .Pointer => |p| {
+                        const pti = @typeInfo(p.child);
+
+                        switch (pti) {
+                            .Array => |a| {
+                                switch (a.child) {
+                                    u8 => {
+                                        self.kind = .AMQP_FIELD_KIND_UTF8;
+                                        self.value.AMQP_FIELD_KIND_UTF8 = bytes_t.init(s);
+                                    },
+                                    else => {
+                                        //std.log.err("Unsupported table_entry_t array type: {}", .{ti});
+
+                                        return error.UnsupportedType;
+                                    },
+                                }
+                            },
+                            else => {
+                                //std.log.err("Unsupported table_entry_t pointer type: {}", .{ti});
+
+                                return error.UnsupportedType;
+                            },
+                        }
+                    },
+                    else => {
+                        //std.log.err("Unsupported table_entry_t type: {}", .{ti});
+
+                        return error.UnsupportedType;
+                    },
+                }
+            },
+        }
+    }
+};
+
+test "table_entry_t init bool" {
+    const key = "hello";
+    const value = true;
+
+    const e = try table_entry_t.init(key, value);
+
+    try std.testing.expectEqual(@as(?[*]const u8, key), e.key.bytes);
+    try std.testing.expectEqual(table_entry_kind.AMQP_FIELD_KIND_BOOLEAN, e.kind);
+    try std.testing.expectEqual(@as(boolean_t, 1), e.value.AMQP_FIELD_KIND_BOOLEAN);
+}
+
+test "table_entry_t init i8" {
+    const key = "hello";
+    const value = @as(i8, 126);
+
+    const e = try table_entry_t.init(key, value);
+
+    try std.testing.expectEqual(@as(?[*]const u8, key), e.key.bytes);
+    try std.testing.expectEqual(table_entry_kind.AMQP_FIELD_KIND_I8, e.kind);
+    try std.testing.expectEqual(value, e.value.AMQP_FIELD_KIND_I8);
+}
+
+test "table_entry_t init u8" {
+    const key = "hello";
+    const value = @as(u8, 126);
+
+    const e = try table_entry_t.init(key, value);
+
+    try std.testing.expectEqual(@as(?[*]const u8, key), e.key.bytes);
+    try std.testing.expectEqual(table_entry_kind.AMQP_FIELD_KIND_U8, e.kind);
+    try std.testing.expectEqual(value, e.value.AMQP_FIELD_KIND_U8);
+}
+
+test "table_entry_t init i16" {
+    const key = "hello";
+    const value = @as(i16, 126);
+
+    const e = try table_entry_t.init(key, value);
+
+    try std.testing.expectEqual(@as(?[*]const u8, key), e.key.bytes);
+    try std.testing.expectEqual(table_entry_kind.AMQP_FIELD_KIND_I16, e.kind);
+    try std.testing.expectEqual(value, e.value.AMQP_FIELD_KIND_I16);
+}
+
+test "table_entry_t init u16" {
+    const key = "hello";
+    const value = @as(u16, 126);
+
+    const e = try table_entry_t.init(key, value);
+
+    try std.testing.expectEqual(@as(?[*]const u8, key), e.key.bytes);
+    try std.testing.expectEqual(table_entry_kind.AMQP_FIELD_KIND_U16, e.kind);
+    try std.testing.expectEqual(value, e.value.AMQP_FIELD_KIND_U16);
+}
+
+test "table_entry_t init i32" {
+    const key = "hello";
+    const value = @as(i32, 126);
+
+    const e = try table_entry_t.init(key, value);
+
+    try std.testing.expectEqual(@as(?[*]const u8, key), e.key.bytes);
+    try std.testing.expectEqual(table_entry_kind.AMQP_FIELD_KIND_I32, e.kind);
+    try std.testing.expectEqual(value, e.value.AMQP_FIELD_KIND_I32);
+}
+
+test "table_entry_t init u32" {
+    const key = "hello";
+    const value = @as(u32, 126);
+
+    const e = try table_entry_t.init(key, value);
+
+    try std.testing.expectEqual(@as(?[*]const u8, key), e.key.bytes);
+    try std.testing.expectEqual(table_entry_kind.AMQP_FIELD_KIND_U32, e.kind);
+    try std.testing.expectEqual(value, e.value.AMQP_FIELD_KIND_U32);
+}
+
+test "table_entry_t init i64" {
+    const key = "hello";
+    const value = @as(i64, 126);
+
+    const e = try table_entry_t.init(key, value);
+
+    try std.testing.expectEqual(@as(?[*]const u8, key), e.key.bytes);
+    try std.testing.expectEqual(table_entry_kind.AMQP_FIELD_KIND_I64, e.kind);
+    try std.testing.expectEqual(value, e.value.AMQP_FIELD_KIND_I64);
+}
+
+test "table_entry_t init u64" {
+    const key = "hello";
+    const value = @as(u64, 126);
+
+    const e = try table_entry_t.init(key, value);
+
+    try std.testing.expectEqual(@as(?[*]const u8, key), e.key.bytes);
+    try std.testing.expectEqual(table_entry_kind.AMQP_FIELD_KIND_U64, e.kind);
+    try std.testing.expectEqual(value, e.value.AMQP_FIELD_KIND_U64);
+}
+
+test "table_entry_t init optional" {
+    const key = "hello";
+    const value = @as(?i8, 126);
+
+    const e = try table_entry_t.init(key, value);
+
+    try std.testing.expectEqual(@as(?[*]const u8, key), e.key.bytes);
+    try std.testing.expectEqual(table_entry_kind.AMQP_FIELD_KIND_I8, e.kind);
+    try std.testing.expectEqual(value, e.value.AMQP_FIELD_KIND_I8);
+}
+
+test "table_entry_t init optional null" {
+    const key = "hello";
+    const value = @as(?i8, null);
+
+    if (table_entry_t.init(key, value)) |_| {
+        return error.Unexpected;
+    } else |err| {
+        try std.testing.expectEqual(error.NullOptional, err);
+    }
+}
+
+test "table_entry_t init string" {
+    const key = "hello";
+    const value = "world";
+
+    const e = try table_entry_t.init(key, value);
+
+    try std.testing.expectEqual(@as(?[*]const u8, key), e.key.bytes);
+    try std.testing.expectEqual(table_entry_kind.AMQP_FIELD_KIND_UTF8, e.kind);
+    try std.testing.expectEqual(@as(?[*]const u8, value), e.value.AMQP_FIELD_KIND_UTF8.bytes);
+}
+
+// test "table_entry_t init stringZ" {
+//     const key = "hello";
+//     const value = @as([*:0]const u8, "world");
+//
+//     const e = try table_entry_t.init(key, value);
+//
+//     try std.testing.expectEqual(@as(?[*]const u8, key), e.key.bytes);
+//     try std.testing.expectEqual(table_entry_kind.AMQP_FIELD_KIND_UTF8, e.kind);
+//     try std.testing.expectEqual(@as(?[*]const u8, value), e.value.AMQP_FIELD_KIND_UTF8.bytes);
+// }
+
+test "table_entry_t init unsupported type" {
+    const t = struct {};
+    const key = "hello";
+    const value = t{};
+
+    if (table_entry_t.init(key, value)) |_| {
+        return error.Unexpected;
+    } else |err| {
+        try std.testing.expectEqual(error.UnsupportedType, err);
+    }
+}
 
 pub const method_t = extern struct {
     id: method_number_t,
