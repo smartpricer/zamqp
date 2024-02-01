@@ -282,7 +282,7 @@ pub const table_entry_t = extern struct {
         switch (t) {
             bool => {
                 self.kind = .AMQP_FIELD_KIND_BOOLEAN;
-                self.value.AMQP_FIELD_KIND_BOOLEAN = if (s) 1 else 0;
+                self.value.AMQP_FIELD_KIND_BOOLEAN = @intFromBool(s);
             },
             i8 => {
                 self.kind = .AMQP_FIELD_KIND_I8;
