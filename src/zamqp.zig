@@ -648,7 +648,7 @@ test "rabbitmq localhost connection" {
     });
     defer queueArguments.deinit(allocator);
 
-    _ = try channel.queue_declare(bytes_t.init("zamqp-unittest"), .{ .auto_delete = true, .arguments = queueArguments });
+    _ = try channel.queue_declare(bytes_t.init("zamqp-unittest"), .{ .auto_delete = true, .exclusive = true, .arguments = queueArguments });
 }
 
 pub const Channel = struct {
