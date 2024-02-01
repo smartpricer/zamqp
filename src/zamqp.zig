@@ -41,6 +41,7 @@ pub const c_api = struct {
     // Channel
 
     pub extern fn amqp_channel_open(state: *connection_state_t, channel: channel_t) ?*channel_open_ok_t;
+    pub extern fn amqp_basic_get(state: *connection_state_t, channel: channel_t, queue: bytes_t, no_ack: boolean_t) RpcReply;
     pub extern fn amqp_read_message(state: *connection_state_t, channel: channel_t, message: *Message, flags: c_int) RpcReply;
     pub extern fn amqp_basic_publish(
         state: *connection_state_t,
@@ -713,6 +714,21 @@ pub const Channel = struct {
 
     pub fn queue_bind(self: Channel, queue: bytes_t, exchange: bytes_t, routing_key: bytes_t, arguments: table_t) !void {
         _ = c_api.amqp_queue_bind(self.connection.handle, self.number, queue, exchange, routing_key, arguments) orelse return self.connection.last_rpc_reply().err();
+    }
+
+    pub fn basic_get(
+        self: Channel,
+        queue: bytes_t,
+        extra: struct {
+            no_ack: bool = false,
+        },
+    ) !void {
+        return c_api.amqp_basic_get(
+            self.connection.handle,
+            self.number,
+            queue,
+            @intFromBool(extra.no_ack),
+        ).ok();
     }
 
     pub fn basic_publish(
