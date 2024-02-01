@@ -1,10 +1,10 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) !void {
-	//const target = b.standardTargetOptions(.{});
-	//const optimize = b.standardOptimizeOption(.{});
+    //const target = b.standardTargetOptions(.{});
+    //const optimize = b.standardOptimizeOption(.{});
 
-	_ = b.addModule("zamqp", .{
-		.source_file = .{ .path = "src/zamqp.zig" },
-	});
+    _ = b.addModule("zamqp", .{
+        .source_file = .{ .path = "src/zamqp.zig" },
+    });
 }
