@@ -160,7 +160,7 @@ pub const array_t = extern struct {
 
 pub const table_t = extern struct {
     num_entries: c_int,
-    entries: ?*table_entry_t,
+    entries: ?[*]table_entry_t,
 
     pub fn empty() table_t {
         return .{ .num_entries = 0, .entries = null };
@@ -174,7 +174,7 @@ pub const table_t = extern struct {
         }
 
         const fields = std.meta.fields(t);
-        const entries = try allocator.alloc(table_entry_t, fields.len);
+        var entries = try allocator.alloc(table_entry_t, fields.len);
 
         inline for (fields, 0..) |f, i| {
             entries[i] = try table_entry_t.init(f.name, @field(s, f.name));
@@ -182,16 +182,18 @@ pub const table_t = extern struct {
 
         return table_t{
             .num_entries = @intCast(entries.len),
-            .entries = &entries[0],
+            .entries = entries.ptr,
         };
     }
 
     pub fn deinit(self: *table_t, allocator: std.mem.Allocator) void {
         const entries = self.entries;
+        const num_entries = self.num_entries;
         self.entries = null;
+        self.num_entries = 0;
 
         if (entries) |e| {
-        allocator.free(@as([]table_entry_t, @ptrCast(e)));
+            allocator.free(e[0..@intCast(num_entries)]);
         }
     }
 };
@@ -612,6 +614,42 @@ pub const Connection = struct {
         },
     };
 };
+
+test "rabbitmq localhost connection" {
+    const allocator = std.testing.allocator;
+
+    var conn = try Connection.new();
+    defer {
+        conn.destroy() catch unreachable;
+    }
+
+    var socket = try TcpSocket.new(conn);
+    try socket.open("localhost", 5672, null);
+    defer {
+        conn.close(.REPLY_SUCCESS) catch unreachable;
+    }
+
+    const auth = Connection.SaslAuth{ .plain = .{
+        .username = "guest",
+        .password = "guest",
+    } };
+
+    try conn.login("/", auth, .{ .heartbeat = 30 });
+
+    var channel = conn.channel(1);
+    _ = try channel.open();
+    defer {
+        channel.close(.REPLY_SUCCESS) catch unreachable;
+    }
+
+    var queueArguments = try table_t.init(allocator, .{
+        .@"x-max-priority" = @as(u8, 2),
+        .@"x-queue-type" = "classic",
+    });
+    defer queueArguments.deinit(allocator);
+
+    _ = try channel.queue_declare(bytes_t.init("zamqp-unittest"), .{ .auto_delete = true, .arguments = queueArguments });
+}
 
 pub const Channel = struct {
     connection: Connection,

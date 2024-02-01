@@ -21,5 +21,5 @@ zig build-lib src/zamqp.zig
 To run the unit tests, the following will check if everything works:
 
 ```sh
-zig test src/zamqp.zig
+zig test -lc -lrabbitmq src/zamqp.zig
 ```
