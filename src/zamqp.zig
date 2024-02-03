@@ -971,10 +971,10 @@ pub const BasicProperties = extern struct {
         cluster_id = 1 << 2,
         _,
 
-        pub fn Type(flag: Flag) type {
+        pub fn Type(comptime flag: Flag) type {
             const needle = "_" ++ @tagName(flag);
             inline for (comptime meta.fields(BasicProperties)) |field| {
-                if (comptime mem.eql(u8, field.name, needle)) return field.field_type;
+                if (comptime mem.eql(u8, field.name, needle)) return field.type;
             }
             unreachable;
         }
