@@ -163,6 +163,34 @@ pub const table_t = extern struct {
     num_entries: c_int,
     entries: ?[*]table_entry_t,
 
+    pub fn get(self: *const table_t, key: []const u8) ?*const table_entry_t {
+        if (self.entries) |ee| {
+            for (ee[0..@intCast(self.num_entries)]) |e| {
+                if (e.key.slice()) |k| {
+                    if (std.mem.eql(u8, k, key)) {
+                        return &e;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
+    pub fn ref(self: *table_t, key: []const u8) ?*table_entry_t {
+        if (self.entries) |*ee| {
+            for (ee.*[0..@intCast(self.num_entries)]) |*e| {
+                if (e.key.slice()) |k| {
+                    if (std.mem.eql(u8, k, key)) {
+                        return e;
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+
     pub fn empty() table_t {
         return .{ .num_entries = 0, .entries = null };
     }
@@ -217,6 +245,14 @@ test "table_t init" {
 
     var e = try table_t.init(allocator, value);
     defer e.deinit(allocator);
+
+    // test getting an entry
+    {
+        const n = e.get("int32") orelse return error.MissingKey;
+
+        try std.testing.expectEqual(table_entry_kind.AMQP_FIELD_KIND_I32, n.kind);
+        try std.testing.expectEqual(value, n.value.AMQP_FIELD_KIND_I32);
+    }
 }
 
 pub const table_entry_kind = enum(u8) {
