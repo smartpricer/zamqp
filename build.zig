@@ -5,6 +5,6 @@ pub fn build(b: *std.Build) !void {
     //const optimize = b.standardOptimizeOption(.{});
 
     _ = b.addModule("zamqp", .{
-        .source_file = .{ .path = "src/zamqp.zig" },
+        .root_source_file = .{ .path = "src/zamqp.zig" },
     });
 }
